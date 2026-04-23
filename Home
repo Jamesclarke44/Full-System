@@ -168,3 +168,4 @@ with status_col4:
 
 st.divider()
 st.caption("🎯 Trading Command Center — Complete trading system at your fingertips")
+
