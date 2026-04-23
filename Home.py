@@ -163,6 +163,9 @@ tab1, tab2, tab3 = st.tabs(["🔍 Scanner", "📈 Analyzer", "🎯 Exit Planner"
 # ----------------------------------------------------------------------------
 # TAB 1: SCANNER (FULL VERSION)
 # ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# TAB 1: SCANNER (FIXED QUICK LOAD)
+# ----------------------------------------------------------------------------
 with tab1:
     st.header("🔍 Trading Scanner")
     
@@ -198,9 +201,13 @@ with tab1:
                     if isinstance(df.columns, pd.MultiIndex):
                         close = df['Close'].iloc[:, 0] if df['Close'].ndim > 1 else df['Close']
                         volume = df['Volume'].iloc[:, 0] if df['Volume'].ndim > 1 else df['Volume']
+                        high = df['High'].iloc[:, 0] if df['High'].ndim > 1 else df['High']
+                        low = df['Low'].iloc[:, 0] if df['Low'].ndim > 1 else df['Low']
                     else:
                         close = df['Close']
                         volume = df['Volume']
+                        high = df['High']
+                        low = df['Low']
                     
                     price = float(close.iloc[-1])
                     prev = float(close.iloc[-2]) if len(close) > 1 else price
@@ -218,12 +225,9 @@ with tab1:
                     gain = (delta.where(delta > 0, 0)).rolling(14).mean()
                     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
                     rs = gain / loss
-                    rsi = 100 - (100 / (1 + rs))
-                    rsi_val = float(rsi.iloc[-1]) if len(rsi) > 0 else 50
+                    rsi_val = float((100 - (100 / (1 + rs))).iloc[-1]) if len(delta) >= 14 else 50
                     
                     # ATR %
-                    high = df['High'].iloc[:, 0] if isinstance(df['High'], pd.DataFrame) else df['High']
-                    low = df['Low'].iloc[:, 0] if isinstance(df['Low'], pd.DataFrame) else df['Low']
                     atr_val = float((high - low).tail(14).mean()) if len(df) >= 14 else price * 0.02
                     atr_pct = (atr_val / price) * 100
                     
@@ -264,37 +268,39 @@ with tab1:
         
         if results:
             st.session_state.scan_results = results
-            st.success(f"✅ Found {len(results)} setups out of {len(tickers)} tickers")
-            
-            df_results = pd.DataFrame(results).sort_values("Score", ascending=False)
-            
-            st.dataframe(
-                df_results.style.format({
-                    'Price': '${:.2f}',
-                    'Change': '{:+.2f}%',
-                    'Vol Ratio': '{:.2f}x',
-                    'ATR %': '{:.2f}%',
-                    'RSI': '{:.1f}'
-                }),
-                use_container_width=True,
-                hide_index=True
-            )
-            
-            st.divider()
-            st.subheader("📤 Quick Load")
-            
-            # Quick load buttons in columns
-            cols = st.columns(5)
-            for i, (_, row) in enumerate(df_results.head(10).iterrows()):
-                with cols[i % 5]:
-                    if st.button(f"📤 {row['Ticker']}", key=f"quick_{row['Ticker']}_{i}", use_container_width=True):
-                        st.session_state.ticker = row['Ticker']
-                        st.session_state.entry = row['Price']
-                        st.success(f"Loaded {row['Ticker']}!")
-                        st.rerun()
         else:
             st.warning("No setups found. Try relaxing filters or a different watchlist.")
-
+    
+    # Display results if they exist (from current scan or session state)
+    if st.session_state.scan_results:
+        results = st.session_state.scan_results
+        st.success(f"✅ Found {len(results)} setups")
+        
+        df_results = pd.DataFrame(results).sort_values("Score", ascending=False)
+        
+        st.dataframe(
+            df_results.style.format({
+                'Price': '${:.2f}',
+                'Change': '{:+.2f}%',
+                'Vol Ratio': '{:.2f}x',
+                'ATR %': '{:.2f}%',
+                'RSI': '{:.1f}'
+            }),
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        st.divider()
+        st.subheader("📤 Quick Load — Click to load ticker (scan results stay below)")
+        
+        # Quick load buttons - NO st.rerun() so results stay!
+        cols = st.columns(5)
+        for i, (_, row) in enumerate(df_results.head(10).iterrows()):
+            with cols[i % 5]:
+                if st.button(f"📤 {row['Ticker']}", key=f"quick_load_{row['Ticker']}_{i}", use_container_width=True):
+                    st.session_state.ticker = row['Ticker']
+                    st.session_state.entry = row['Price']
+                    st.success(f"✅ {row['Ticker']} loaded! Go to Analyzer tab.")
 # ----------------------------------------------------------------------------
 # TAB 2: ENTRY ANALYZER
 # ----------------------------------------------------------------------------
